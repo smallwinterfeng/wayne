@@ -10,6 +10,7 @@ import (
         "log"
 	"strconv"
 	"time"
+	"os"
 )
 
 var userID string
@@ -17,7 +18,12 @@ var maxAppUserID string
 var appID string
 
 func main() {
-	insertAppUser("wanlinlin")
+	if len(os.Args) != 2 {
+		fmt.Println("参数数量错误.........")
+		help()
+	} else {
+		insertAppUser(os.Args[1])
+	}
 }
 
 func checkErr(errMasg error) {
@@ -118,4 +124,12 @@ func insertAppUser(name string) {
 			}
 		}
 	}
+}
+
+// display help information
+func help() {
+	fmt.Println("参数：")
+	fmt.Println("user: 指定用户名")
+	fmt.Println("----------------")
+	fmt.Println("eg: addAppUser fengxiaodong01")
 }
