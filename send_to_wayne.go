@@ -16,7 +16,7 @@ import (
 
         "github.com/fsnotify/fsnotify"
         "regexp"
-	"os/exec"
+		"os/exec"
 )
 
 var deploymentID string
@@ -50,7 +50,7 @@ func main() {
                                                                 fileName := f.Name()
                                                                 fileName = strings.Split(fileName, ".")[0]
                                                                 dataArray := strings.Split(fileName, "_")
-								if len(dataArray[0]) > 32 {
+								if len(dataArray[0]) > 100 {
 									log.Println(len(dataArray[0]))
 									log.Println("The name of service is too long!")
 								} else {
@@ -123,6 +123,7 @@ func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID s
 
         db, err := sql.Open("mysql", "wayne:V2F5bmVfeW91eGluMTIz@tcp(10.56.196.13:3306)/?charset=utf8") //第一个参数为驱动名
         checkErr(err)
+	defer db.Close()
 
         //query deployment exist or not, if not create
         var dpTpFlag = false
@@ -172,6 +173,7 @@ func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID s
 func insertDeployment(name string, apID string) string {
         db, err := sql.Open("mysql", "wayne:V2F5bmVfeW91eGluMTIz@tcp(10.56.196.13:3306)/?charset=utf8") //第一个参数为驱动名
         checkErr(err)
+	defer db.Close()
 
         //query deployment exist or not, if not create
         deploymentFlag := false
@@ -212,6 +214,7 @@ func insertDeployment(name string, apID string) string {
 func insertApp(name string) string {
         db, err := sql.Open("mysql", "wayne:V2F5bmVfeW91eGluMTIz@tcp(10.56.196.13:3306)/?charset=utf8") //第一个参数为驱动名
         checkErr(err)
+	defer db.Close()
 
         //query app exist or not, if not create
         appFlag := false
