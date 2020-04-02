@@ -16,12 +16,16 @@ import (
 var userID string
 var maxAppUserID string
 var appID string
+var groupID string
+var namespaceID string
 
 func main() {
-	if len(os.Args) != 2 {
+	if len(os.Args) != 4 {
 		fmt.Println("参数数量错误.........")
 		help()
 	} else {
+		namespaceID = os.Args[3]
+		groupID = os.Args[2]
 		insertAppUser(os.Args[1])
 	}
 }
@@ -81,7 +85,7 @@ func insertAppUser(name string) {
 		log.Println(userName+" is none!")
         } else {
 		//query app id
-		queryApp := "select id from wayne.app where namespace_id=4 order by id desc;"
+		queryApp := "select id from wayne.app where namespace_id=" + namespaceID + " order by id desc;"
 		queryAppRes, err := db.Query(queryApp)
 		checkErr(err)
 		resApp := queryData(queryAppRes)		
@@ -116,7 +120,7 @@ func insertAppUser(name string) {
 				maxAppUserID = strconv.Itoa(maxAppUserIDInt+1)
 
 				currentTime := time.Now().Format("2006-01-02 15:04:05")
-				appUser := "insert into wayne.app_user values (" + maxAppUserID + ", " + appID + ", " + userID + ", 23, '" + currentTime + "', '" + currentTime + "');" 
+				appUser := "insert into wayne.app_user values (" + maxAppUserID + ", " + appID + ", " + userID + ", " + groupID + ", '" + currentTime + "', '" + currentTime + "');" 
 				//fmt.Println("appUser: " + appUser)
 				db.Query(appUser)
 			} else {
@@ -129,7 +133,7 @@ func insertAppUser(name string) {
 // display help information
 func help() {
 	fmt.Println("参数：")
-	fmt.Println("user: 指定用户名")
+	fmt.Println("user: 指定用户名 权限ID 命名空间ID")
 	fmt.Println("----------------")
-	fmt.Println("eg: addAppUser fengxiaodong01")
+	fmt.Println("eg: addUser fengxiaodong01 23 4")
 }
