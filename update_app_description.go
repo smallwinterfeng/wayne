@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"database/sql"
-	 _ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/fsnotify/fsnotify"
 	"log"
 )
@@ -18,27 +18,28 @@ func main() {
         checkErr(err)
         //我们另启一个goroutine来处理监控对象的事件
 		go func() {
-			for {
-				select {
-				case ev := <-watch.Events:
-					{
-						//判断事件发生的类型
-						//Create 创建
-						if ev.Op&fsnotify.Create == fsnotify.Create {
-							updateDescription()	
-						}
-					}
-				case err := <-watch.Errors:
-					{
-						log.Println("error : ", err)
-						return
+		for {
+			select {
+			case ev := <-watch.Events:
+				{
+					//判断事件发生的类型
+					//Create 创建
+					if ev.Op&fsnotify.Create == fsnotify.Create {
+						updateDescription()	
+						deleteDeploymentTemplate()
 					}
 				}
+			case err := <-watch.Errors:
+				{
+					log.Println("error : ", err)
+					return
+				}
 			}
-		}()
+		}
+	}()
 	
-		//循环
-		select {}
+	//循环
+	select {}
 }
 
 func checkErr(errMasg error) {
@@ -83,44 +84,54 @@ func updateDescription() {
         checkErr(err)
         resData := queryData(queryPublishRes)
         for _, v := range resData {
-				resourceID := v["resource_id"]
-				templateID := v["template_id"]
-				
-				//query template description
-				var templateDescription string
-				queryTemplate := "select description from wayne.deployment_template where id=" + templateID + ";"
-				queryTemplateRes, err := db.Query(queryTemplate)
-				checkErr(err)
-				resTemplateData := queryData(queryTemplateRes)
-				for _, vT := range resTemplateData {
-					templateDescription = vT["description"]
-				}
+		resourceID := v["resource_id"]
+		templateID := v["template_id"]
+		
+		//query template description
+		var templateDescription string
+		queryTemplate := "select description from wayne.deployment_template where id=" + templateID + ";"
+		queryTemplateRes, err := db.Query(queryTemplate)
+		checkErr(err)
+		resTemplateData := queryData(queryTemplateRes)
+		for _, vT := range resTemplateData {
+			templateDescription = vT["description"]
+		}
 
-				//query app id from deployment
-				var appID string
-				queryDeployment := "select app_id from wayne.deployment where id=" + resourceID + ";"
-				queryDeploymentRes, err := db.Query(queryDeployment)
-				checkErr(err)
-				resDeploymentData := queryData(queryDeploymentRes)
-				for _, vD := range resDeploymentData {
-					appID = vD["app_id"]
-				}
-				
-				//judge app is hq or not
-				if len(appID) >= 1 {
-					var namespaceID string
-					queryApp := "select namespace_id from wayne.app where id=" + appID + ";"
-					queryAppRes, err := db.Query(queryApp)
-					checkErr(err)
-					resAppData := queryData(queryAppRes)
-					for _, vA := range resAppData {
-						namespaceID = vA["namespace_id"]
-					}
-					if namespaceID == "4" {
-						//update the description of app from publish_status
-						updateSql := "update wayne.app set description='" + templateDescription + "' where id=" + appID + ";"
-						db.Query(updateSql)
-					}
-				}
+		//query app id from deployment
+		var appID string
+		queryDeployment := "select app_id from wayne.deployment where id=" + resourceID + ";"
+		queryDeploymentRes, err := db.Query(queryDeployment)
+		checkErr(err)
+		resDeploymentData := queryData(queryDeploymentRes)
+		for _, vD := range resDeploymentData {
+			appID = vD["app_id"]
+		}
+		
+		//judge app is hq or not
+		if len(appID) >= 1 {
+			var namespaceID string
+			queryApp := "select namespace_id from wayne.app where id=" + appID + ";"
+			queryAppRes, err := db.Query(queryApp)
+			checkErr(err)
+			resAppData := queryData(queryAppRes)
+			for _, vA := range resAppData {
+				namespaceID = vA["namespace_id"]
+			}
+			if namespaceID == "4" {
+				//update the description of app from publish_status
+				updateSql := "update wayne.app set description='" + templateDescription + "' where id=" + appID + ";"
+				db.Query(updateSql)
+			}
+		}
         }
+}
+
+func deleteDeploymentTemplate() {
+        db, err := sql.Open("mysql", "wayne:V2F5bmVfeW91eGluMTIz@tcp(10.56.196.13:3306)/?charset=utf8") //第一个参数为驱动名
+        checkErr(err)
+        defer db.Close()
+
+		//delete the template of deployment
+		deleteSql := "delete from wayne.deployment_template where deleted=1;"
+		db.Query(deleteSql)
 }
