@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
+        "fmt"
+        "database/sql"
+        _ "github.com/go-sql-driver/mysql"
 	"github.com/fsnotify/fsnotify"
 	"log"
 )
@@ -17,7 +17,7 @@ func main() {
         err = watch.Add("/root/k8s/yaml/")
         checkErr(err)
         //我们另启一个goroutine来处理监控对象的事件
-		go func() {
+	go func() {
 		for {
 			select {
 			case ev := <-watch.Events:
@@ -76,12 +76,14 @@ func queryData(query *sql.Rows) map[int]map[string]string {
 func updateDescription() {
         db, err := sql.Open("mysql", "wayne:V2F5bmVfeW91eGluMTIz@tcp(10.56.196.13:3306)/?charset=utf8") //第一个参数为驱动名
         checkErr(err)
-		defer db.Close()
+	defer db.Close()
 
         //query publish status
         queryPublish := "select resource_id, template_id from wayne.publish_status where type=0;"
         queryPublishRes, err := db.Query(queryPublish)
         checkErr(err)
+	defer queryPublishRes.Close()
+
         resData := queryData(queryPublishRes)
         for _, v := range resData {
 		resourceID := v["resource_id"]
@@ -92,6 +94,8 @@ func updateDescription() {
 		queryTemplate := "select description from wayne.deployment_template where id=" + templateID + ";"
 		queryTemplateRes, err := db.Query(queryTemplate)
 		checkErr(err)
+		defer queryTemplateRes.Close()
+
 		resTemplateData := queryData(queryTemplateRes)
 		for _, vT := range resTemplateData {
 			templateDescription = vT["description"]
@@ -102,6 +106,8 @@ func updateDescription() {
 		queryDeployment := "select app_id from wayne.deployment where id=" + resourceID + ";"
 		queryDeploymentRes, err := db.Query(queryDeployment)
 		checkErr(err)
+		defer queryDeploymentRes.Close()
+
 		resDeploymentData := queryData(queryDeploymentRes)
 		for _, vD := range resDeploymentData {
 			appID = vD["app_id"]
@@ -113,6 +119,8 @@ func updateDescription() {
 			queryApp := "select namespace_id from wayne.app where id=" + appID + ";"
 			queryAppRes, err := db.Query(queryApp)
 			checkErr(err)
+			defer queryAppRes.Close()
+
 			resAppData := queryData(queryAppRes)
 			for _, vA := range resAppData {
 				namespaceID = vA["namespace_id"]
@@ -120,7 +128,9 @@ func updateDescription() {
 			if namespaceID == "4" {
 				//update the description of app from publish_status
 				updateSql := "update wayne.app set description='" + templateDescription + "' where id=" + appID + ";"
-				db.Query(updateSql)
+				row , err := db.Query(updateSql)
+				checkErr(err)
+				defer row.Close()
 			}
 		}
         }
@@ -131,7 +141,9 @@ func deleteDeploymentTemplate() {
         checkErr(err)
         defer db.Close()
 
-		//delete the template of deployment
-		deleteSql := "delete from wayne.deployment_template where deleted=1;"
-		db.Query(deleteSql)
+	//delete the template of deployment
+	deleteSql := "delete from wayne.deployment_template where deleted=1;"
+	row, err := db.Query(deleteSql)
+	checkErr(err)
+	defer row.Close()
 }
