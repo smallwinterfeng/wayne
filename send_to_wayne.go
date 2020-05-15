@@ -19,6 +19,10 @@ import (
 		"os/exec"
 )
 
+const (
+	filePath = "/root/k8s/yaml/"
+)
+
 var deploymentID string
 var dpTpID string
 var appID string
@@ -29,7 +33,7 @@ func main() {
         checkErr(err)
         defer watch.Close()
         //添加要监控的对象，文件或文件夹
-        err = watch.Add("/root/k8s/yaml/")
+        err = watch.Add(filePath)
         checkErr(err)
         //我们另启一个goroutine来处理监控对象的事件
         go func() {
@@ -41,7 +45,7 @@ func main() {
                                         // Create 创建
                                         if ev.Op&fsnotify.Create == fsnotify.Create {
                                                 //query all files
-                                                files, err := ioutil.ReadDir("/root/k8s/yaml/")
+                                                files, err := ioutil.ReadDir(filePath)
                                                 checkErr(err)
                                                 for _, f := range files {
                                                         match, _ := regexp.MatchString(`\.yml$`, f.Name())
@@ -117,7 +121,7 @@ func queryData(query *sql.Rows) map[int]map[string]string {
 }
 
 func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID string) {
-        file, _ := ioutil.ReadFile("/root/k8s/yaml/" + dpFile)
+        file, _ := ioutil.ReadFile(filePath + dpFile)
         jsonData, err := yaml.YAMLToJSON(file)
         checkErr(err)
 
@@ -130,6 +134,7 @@ func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID s
         qyDpTp := "select id, description, name from wayne.deployment_template;"
         qyDpRes, err := db.Query(qyDpTp)
         checkErr(err)
+	defer qyDpRes.Close()
         resData := queryData(qyDpRes)
         for _, v := range resData {
                 dpTpUnTag := dpName + dpTag
@@ -146,6 +151,7 @@ func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID s
                 queryMaxTpID := "select id from  wayne.deployment_template order by id desc limit 1;"
                 queryMaxTpIDRes, err := db.Query(queryMaxTpID)
                 checkErr(err)
+		defer queryMaxTpIDRes.Close()
                 resTpID := queryData(queryMaxTpIDRes)
                 for _, v := range resTpID {
                         dpTpID = v["id"]
@@ -161,7 +167,7 @@ func insertDeploymentTemplate(dpName string, dpTag string, dpFile string, dpID s
                 str = strings.Replace(str, `}}}"`, `}}}`, 1)
                 currentTime := time.Now().Format("2006-01-02 15:04:05")
                 insertDpTp := `insert into wayne.deployment_template  values (` + dpTpID + `, '` + dpName + `', '` + str + `', ` + dpID + `, '` + dpTag + `', '` + currentTime + `', '` + currentTime + `', 'admin', 0);`
-                db.Query(insertDpTp)
+                db.Exec(insertDpTp)
                 //fmt.Println(insertDpTp)
 
                 log.Println("Insert success!")
@@ -181,6 +187,7 @@ func insertDeployment(name string, apID string) string {
         queryDeployment := "select id, name from wayne.deployment;"
         queryDeploymentRes, err := db.Query(queryDeployment)
         checkErr(err)
+	defer queryDeploymentRes.Close()
         resData := queryData(queryDeploymentRes)
         for _, v := range resData {
                 if v["name"] == deploymentName {
@@ -195,6 +202,7 @@ func insertDeployment(name string, apID string) string {
                 queryMaxID := "select id from  wayne.deployment order by id desc limit 1;"
                 queryMaxIDRes, err := db.Query(queryMaxID)
                 checkErr(err)
+		defer queryMaxIDRes.Close()
                 resID := queryData(queryMaxIDRes)
                 for _, vid := range resID {
                         deploymentID = vid["id"]
@@ -206,7 +214,7 @@ func insertDeployment(name string, apID string) string {
                 currentTime := time.Now().Format("2006-01-02 15:04:05")
                 deploymentMetaData := `{"replicas":{"yx-k8s":1},"resources":{"cpuLimit":"12","cpuRequestLimitPercent":"50%","memoryLimit":"64","memoryRequestLimitPercent":"100%","replicaLimit":"32"},"privileged":null}`
                 insertDeploymentName := "insert into wayne.deployment  values (" + deploymentID + ", '" + deploymentName + "', '" + string(deploymentMetaData) + "', "+ apID +", '', 0, '" + currentTime + "', '" + currentTime + "', 'admin', 0);"
-                db.Query(insertDeploymentName)
+                db.Exec(insertDeploymentName)
         }
         return deploymentID
 }
@@ -222,6 +230,7 @@ func insertApp(name string) string {
         queryApp := "select id, name from wayne.app;"
         queryAppRes, err := db.Query(queryApp)
         checkErr(err)
+	defer queryAppRes.Close()
         resData := queryData(queryAppRes)
         for _, v := range resData {
                 if v["name"] == appName {
@@ -236,6 +245,7 @@ func insertApp(name string) string {
                 queryMaxID := "select id from  wayne.app order by id desc limit 1;"
                 queryMaxIDRes, err := db.Query(queryMaxID)
                 checkErr(err)
+		defer queryMaxIDRes.Close()
                 resID := queryData(queryMaxIDRes)
                 for _, vid := range resID {
                         appID = vid["id"]
@@ -246,7 +256,7 @@ func insertApp(name string) string {
 
                 currentTime := time.Now().Format("2006-01-02 15:04:05")
                 insertAppName := "insert into wayne.app values (" + appID + ", '" + appName + "', 4, '','"+ appName +"', '" + currentTime + "', '" + currentTime + "', 'fengxiaodong01', 0, 0);"
-                db.Query(insertAppName)
+                db.Exec(insertAppName)
         }
         return appID
 }
