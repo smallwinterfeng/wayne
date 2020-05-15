@@ -16,7 +16,7 @@ import (
 
         "github.com/fsnotify/fsnotify"
         "regexp"
-		"os/exec"
+	"os/exec"
 )
 
 const (
