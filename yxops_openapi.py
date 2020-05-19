@@ -11,6 +11,7 @@ _CONVERT_TOOL_TEST = '/root/test/optools_to_k8s'
 _DIAMOND_TOOL = '/root/k8s/diamond_to_k8s'
 _TOKEN_KEY = 'api:foB9ROmprZ6V0WdlHY9L'
 
+
 class OpenApiOptoolToK8sHandler(tornado.web.RequestHandler):
     def initialize(self):
         global _CONVERT_TOOL,_TOKEN_KEY,_CONVERT_TOOL_TEST
@@ -80,7 +81,7 @@ class OpenApiOptoolToK8sHandler(tornado.web.RequestHandler):
         if serviceName:
             cmd = 'cd {5} && {0} -t {1} -d {2} -s {3} -S {4}'.format(tool,tagName,stackDir,stackName,serviceName,path)
         else:
-            cmd = 'cd {4} && {0} -t {1} -d {2} -s {3} '.format(tool,tagName,stackDir,stackName,path)
+            cmd = 'cd {4} && {0} -t {1} -d {2} -s {3}'.format(tool,tagName,stackDir,stackName,path)
         result,output = subprocess.getstatusoutput(cmd)
         self.result['message'] =[line for line in filter(lambda line: line != "", output.split('\n'))]
         self.result['code'] = 200
@@ -89,6 +90,11 @@ class OpenApiOptoolToK8sHandler(tornado.web.RequestHandler):
     def get_output_dir(self,tool):
         path = os.path.dirname(tool)
         return path
+
+
+
+
+
 
 class OpenApiDiamondToK8sHandler(tornado.web.RequestHandler):
     def initialize(self):
@@ -147,6 +153,11 @@ class OpenApiDiamondToK8sHandler(tornado.web.RequestHandler):
     def get_output_dir(self,tool):
         path = os.path.dirname(tool)
         return path
+
+
+
+
+
 
 def authorization(token):
     global _TOKEN_KEY
