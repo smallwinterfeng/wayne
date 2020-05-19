@@ -20,8 +20,6 @@ _WECHAT_WEBHOOK = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=7dc28dba
 _CHECKOUT_PATH = '/home/optools' #代码检出目录
 _OPTOOLS_REPO = 'http://szgitlab.youxin.com/deploy/optools.git' #optools代码地址
 _CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),'yaml')
-#_IMAGE_SYNC_API = 'http://10.210.110.148:9091/process'
-_IMAGE_SYNC_SCRIPT = '/home/sa/rsync_image.py' #镜像同步脚本
 _NAMESPACE_PREFIX = 'hq-system-'
 _CHECKOUT_PATH_HOME='/home/optools/base'
 
@@ -53,9 +51,6 @@ spec:
         wayne-app: hq-system
         wayne-ns: hq-system
     spec:
-      nodeSelector:
-        beta.kubernetes.io/os: linux
-        app_type: hq
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -89,6 +84,103 @@ spec:
                 values:
                 - SERVICE_NAME
             topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: SERVICE_NAME
+          image: IMAGE_NAME
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: JVM_MEM
+            value: "6144m"
+          - name: settings
+            value: "xx"
+          readinessProbe:
+            tcpSocket:
+              port: 8802
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8802
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - mountPath: /opt/logs
+              name: log-path
+      volumes:
+        - name: log-path
+          hostPath:
+            path: /opt/apps/logs/t2-server
+"""
+
+#k8s Deployment模板
+_DEPLOYMENT_TMP_ICE = """---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example
+  namespace: hq-system
+  labels:
+    wayne-app: hq-system
+    wayne-ns: hq-system
+    app: SERVICE_NAME
+spec:
+  selector:
+    matchLabels:
+      app: SERVICE_NAME
+  replicas: COUNT
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: SERVICE_NAME
+        wayne-app: hq-system
+        wayne-ns: hq-system
+    spec:
+      hostNetwork: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - HOST_NAME
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 70
+            preference:
+              matchExpressions:
+              - key: app_type
+                operator: In
+                values:
+                - ice
+          - weight: 30
+            preference:
+              matchExpressions:
+              - key: share_type
+                operator: In
+                values:
+                - dedicated
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - SERVICE_NAME
+            topologyKey: "kubernetes.io/hostname"
+      tolerations:
+        - key: node_type
+          operator: Equal
+          value: dt
+          effect: NoSchedule
       containers:
         - name: SERVICE_NAME
           image: IMAGE_NAME
@@ -162,76 +254,12 @@ def clean_history_data():
 clean_history_data()
 
 
-
-#同步镜像函数,暂时不使用。手动同步
-def rsync_image(image_list):
-    image_pull_cmd = "/bin/docker pull %s > /dev/null"
-    image_tag_cmd = "/bin/docker tag %s %s > /dev/null"
-    image_push_cmd = "/bin/docker push %s > /dev/null"
-    try:
-        for image in image_list:
-            image = image.split("\n")[0]
-            service_temp = image.split(":")[-2].split("/")[-1]
-            if service_temp[-3:] == "uat" or service_temp[-3:] == "dev" or service_temp[-3:] == "sit":
-                service = service_temp[:-4]
-            else:
-                service = image.split(":")[-2].split("/")[-1]          
-            namespace_temp = image.split(":")[-2].split("/")[-2]
-            if namespace_temp[-3:] == "uat" or namespace_temp[-3:] == "dev" or namespace_temp[-3:] == "sit":
-                namespace = namespace_temp[:-4]
-            else:
-                namespace = image.split(":")[-2].split("/")[-2]
-            if namespace == "youxin-news":
-                namespace = "hq-zx"
-            version = image.split(":")[-1]
-            prefix_tag = "registry.yxzq.com:5000/%s/" % namespace   # 目标仓库路径
-            result = os.system(image_pull_cmd % image)
-            if result != 0:
-                return False
-            tag_image = "%s%s:%s" % (prefix_tag, service, version)
-            os.system(image_tag_cmd % (image, tag_image))
-            result = os.system(image_push_cmd % tag_image)
-            if result != 0:
-                return False
-        return True
-    except Exception as e:
-        print(str(e))
-        return False
-
-
-
-
-
-
 def sub_tag_name(tag_name):
     if isinstance(tag_name,str):
       tag_name = tag_name.split('-')
       if len(tag_name) > 1:
         return '-'.join([tag_name[-2],tag_name[-1]]) if len(tag_name[-1]) <= 4 else tag_name[-1]
     return tag_name
-
-
-#拉取代码,已弃用
-def checkout_to_tag(tag_name):
-    global _CHECKOUT_PATH, _OPTOOLS_REPO
-    create_time = datetime.strftime(datetime.now(),'%Y%m%d%H%M%S')
-    code_dir = os.path.join(_CHECKOUT_PATH,create_time)
-    if not os.path.exists(code_dir):
-        os.system('/usr/bin/mkdir -p {0}'.format(code_dir))
-    result = os.system('which git &>/dev/null')
-    if result != 0:
-        print(u"请先安装git工具")
-        return False
-    result = os.system('cd {0} && git clone {1} &>/dev/null'.format(code_dir, _OPTOOLS_REPO))
-    if result != 0 :
-        print(u"下载optools代码失败,请检查是否添加公钥")
-        return False
-    result = os.system('cd {0} && git checkout {1} &>/dev/null'.format(os.path.join(code_dir,'optools'),tag_name))
-    if result != 0:
-        print(u"checkout 代码失败,请确认tag是否存在")
-        return False
-    return code_dir
-
 
 #增量拉取optools代码
 def checkout_to_tag_incre(tag_name):
@@ -323,29 +351,6 @@ def get_service_name(stack_file, stack_name,service_name=None):
     return service_names
 
 
-
-#该方法已弃用
-def sync_image_to_prod(result):
-    global _IMAGE_SYNC_API,_IMAGE_SYNC_SCRIPT
-    _image_list = list()
-    for _res in result:
-        if len(_res['image_list']) >= 1:
-            test_url_prefix = 'test-registry.yxzq.com:5001'
-            prod_url_prefix = 'registry.yxzq.com'
-            for url in _res['image_list']:
-                url = url.replace(prod_url_prefix,test_url_prefix)
-                _image_list.append([url,'error'])
-    for _image_url in _image_list:
-        #result = rsync_image([_image_url[0]])
-        result = False
-        if result:
-            _image_url[1]="ok"
-        else:
-            _image_url[1]="error"
-    return _image_list
-
-
-
 #解析optools 的service文件里面的变量
 def parser_var_file(var_file):
     kv_store = dict()
@@ -371,11 +376,23 @@ def parser_var_file(var_file):
                             tmp_v = int(value)
                         except Exception as e:
                             flag = 0
+                        if is_number(value):
+                            value = "'" + value + "'" 
                         value=[value,flag]
                         key = line[0].replace(':','').replace(' ','')
                         kv_store.update({key:value})
     return kv_store if kv_store != {} else None
 
+
+#判断value是否数字
+def is_number(value):
+    try:
+        if value=='NaN':
+            return False
+        float(value)
+        return True
+    except ValueError:
+        return False
 
 
 #解析optools里面的发布机器
@@ -393,23 +410,6 @@ def parser_dispatcher_file(dispatcher_file, stack_name):
             print(str(e))
     return False
 
-
-
-#旧变量解析方法,已弃用
-def replace_service_var(service_files, data):
-    if isinstance(service_files, str):
-        service_files = [service_files]
-    for service_file in service_files :
-        for key in data.keys():
-            result = os.system('grep "{0}" {1} '.format(key,service_file))
-            if result == 0 :
-                value = data[key]
-                cmd = 'sed -i "s#\<\${0}\>#{1}#g" {2}'.format(key, value, service_file)
-                print(cmd)
-                result = os.system('sed -i "s#\<\${0}\>#{1}#g" {2}'.format(key, value, service_file))
-                if result != 0:
-                    return False
-    return True
 
 #optools的service文件变量解析实现
 def replace_service_var_by_python(service_files, data):
@@ -622,6 +622,29 @@ def docker_to_k8s(stack_name, service_name, service_file, dispatcher_node,tag_na
     result['image_list'].append(image_name)
     return result
 
+#将optools服务转换成k8s的deployment
+def docker_to_k8s_ice(stack_name, service_name, service_file, dispatcher_node,tag_name,replicas=0):
+    global _DEPLOYMENT_TMP_ICE,_SERVICE_TMP
+    result = {'deployment':{},
+              'service':{},
+              'image_list': []
+             }
+    docker_data = dockerfile_parser(service_name,service_file)
+    image_name = docker_data['image_name']
+    volumes = docker_data['register_volumes']
+    register_service = docker_data['register_service']
+    enviroment = docker_data['enviroment']
+    is_listen = docker_data['is_listen']
+    volume_mounts, k8s_volumes =  to_k8s_volumes_format(volumes)
+    if not dispatcher_node:
+        raise Exception('No node to dispatch. please check your dispatcher.yml format !')
+    if len(register_service) < 1:
+        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,replicas=replicas,is_listen=is_listen)
+    else:
+        result['service'] = render_k8s_service_template(_SERVICE_TMP,register_service,service_name)
+        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,port=register_service[0][2],replicas=replicas,protocol=register_service[0][3])
+    result['image_list'].append(image_name)
+    return result
 
 
 def render_k8s_deployment_template(template_name,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,port=None,replicas=0,protocol='tcp',is_listen=True):
@@ -666,7 +689,6 @@ def render_k8s_deployment_template(template_name,stack_name,service_name,image_n
         print(str(e))
         result.update({service_name:None})
     return result
-
 
 
 #判断是否为随机调度机器
@@ -765,7 +787,11 @@ def get_stack_service(tag_name, project, stack_name, service_name=None,env='live
             dispatcher_node = parser_dispatcher_file(dispatcher_file,stack_name)
             if replace_service_var_by_python(service_files, parser_var_file(var_file)):
                 for service in service_data:
-                    result.append(docker_to_k8s(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
+                    if service[0] in ['usicequoteforward-master', 'usicequoteforward-slave', 'usiceparser-master', 'usiceparser-slave']:
+                        print("----------------service-----------------: " + service[0])
+                        result.append(docker_to_k8s_ice(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
+                    else:
+                        result.append(docker_to_k8s(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
                 return result
         else:
             print(u'检测文件失败,请确认stack目录,stack名是否正确')
@@ -803,30 +829,6 @@ def main_api(tag_name,stack_dir,stack_name,service_name=None,env='live-hk'):
         print(str(e))
     return result
 
-
-
-def send_message(tag,stack,service,wechat):
-    global _WECHAT_WEBHOOK
-    wh = _WECHAT_WEBHOOK
-    deploy_time = datetime.strftime(datetime.now(),"%Y-%m-%d %H:%M:%S")
-    msg_prefix = "`沙田备份机房服务发布通知`\n\n"
-    msg_body = ">发布分支：<font color=\"comment\">"+tag+"</font>\n\n"
-    msg_body = msg_body+">发布Stack：<font color=\"info\">"+stack+"</font>\n\n"
-    msg_body = msg_body+">发布服务：<font color=\"info\">"+service+"</font>\n\n"
-    msg_body = msg_body+">发布时间：<font color=\"warning\">"+deploy_time+"</font>\n\n"
-    msg = msg_prefix + msg_body
-    headers = {"Content-Type":"application/json;charset=utf-8"}
-    data = {
-        "msgtype":"markdown",
-        "markdown": {
-              "content": msg
-            },
-        "enable_duplicate_check": 0
-     }
-    if wh and wechat == "true":
-        rsp = requests.post(url=wh,headers=headers,data=json.dumps(data))
-
-
 def main_cmd():
     parser_obj = optparse.OptionParser(usage="convert optools stack service project into k8s deployment and service yaml file.")
     parser_obj.add_option('-t','--tag',action='store',type='string',help='project tag (Must)',dest='tag')
@@ -836,13 +838,11 @@ def main_cmd():
                           ''',dest='stack_dir')
     parser_obj.add_option('-s','--stack',action='store',type='string',help='optools stack name (Must)',dest='stack_name')
     parser_obj.add_option('-S','--service',action='store',type='string',help='optools service name (Optional)',dest='service_name')
-    parser_obj.add_option('-w','--wechat',action='store',type='string',default="true",help="send depolyment info to wechat The optional value is: true|false",dest="wechat")
     opt,args=parser_obj.parse_args()
     tag = opt.tag
     stack_dir = opt.stack_dir
     stack_name = opt.stack_name
     service_name = opt.service_name
-    wechat = opt.wechat
     if not tag or not stack_dir or not stack_name:
         parser_obj.print_help()
     else:
@@ -852,27 +852,16 @@ def main_cmd():
         if service_name:
             service_name = opt.service_name.replace(' ','')
             result = get_stack_service(tag,stack_dir,stack_name,service_name)
+            if not isinstance(result,list):
+                print(result)
+                sys.exit(1)
+            format_output(result)
         else:
             result = get_stack_service(tag,stack_dir,stack_name)
-    if not result:
-        return False
-    image_list = sync_image_to_prod(result) #生产环境无法自动同步镜像,请手动执行同步
-    if not os.path.exists(_IMAGE_SYNC_SCRIPT):
-        print(u"\n********需手动同步镜像地址如下************: \n{0}".format('\n'.join([info[0] for info in image_list])))
-    else:
-        print(u"\n*********镜像同步结果**************\n")
-        for sync_info in image_list:
-            #print(sync_info)
-            #print_line = u"镜像地址: {0}  同步结果:  成功".format(sync_info[0]) if sync_info[1] == 'ok' else u"镜像地址: {0} 同步结果： 失败".format(sync_info[0]) 
-            print_line =  u"镜像地址: {0} 同步结果： 失败".format(sync_info[0]) 
-            print(print_line)
-    return result,tag,stack_name,wechat
-
+            if not isinstance(result,list):
+                print(result)
+                sys.exit(1)
+            format_output(result)
 
 if __name__ == '__main__':
-    result,tag,stack,wechat = main_cmd()
-    if not isinstance(result,list):
-        print(result)
-        sys.exit(1)
-    service = format_output(result)
-    send_message(tag,stack,','.join(service),wechat)
+    main_cmd()
