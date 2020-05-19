@@ -376,24 +376,10 @@ def parser_var_file(var_file):
                             tmp_v = int(value)
                         except Exception as e:
                             flag = 0
-                        if is_number(value):
-                            value = "'" + value + "'" 
                         value=[value,flag]
                         key = line[0].replace(':','').replace(' ','')
                         kv_store.update({key:value})
     return kv_store if kv_store != {} else None
-
-
-#判断value是否数字
-def is_number(value):
-    try:
-        if value=='NaN':
-            return False
-        float(value)
-        return True
-    except ValueError:
-        return False
-
 
 #解析optools里面的发布机器
 def parser_dispatcher_file(dispatcher_file, stack_name):
@@ -788,7 +774,6 @@ def get_stack_service(tag_name, project, stack_name, service_name=None,env='live
             if replace_service_var_by_python(service_files, parser_var_file(var_file)):
                 for service in service_data:
                     if service[0] in ['usicequoteforward-master', 'usicequoteforward-slave', 'usiceparser-master', 'usiceparser-slave']:
-                        print("----------------service-----------------: " + service[0])
                         result.append(docker_to_k8s_ice(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
                     else:
                         result.append(docker_to_k8s(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
