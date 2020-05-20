@@ -585,8 +585,8 @@ def to_k8s_containers_format(service_name,image_name,volume_mounts,env,port=None
 
 
 #将optools服务转换成k8s的deployment
-def docker_to_k8s(stack_name, service_name, service_file, dispatcher_node,tag_name,replicas=0):
-    global _DEPLOYMENT_TMP,_SERVICE_TMP
+def docker_to_k8s(stack_name, service_name, service_file, dispatcher_node,tag_name,replicas=0,tmp_type='normal'):
+    global _DEPLOYMENT_TMP,_SERVICE_TMP,_DEPLOYMENT_TMP_ICE
     result = {'deployment':{},
               'service':{},
               'image_list': []
@@ -601,34 +601,10 @@ def docker_to_k8s(stack_name, service_name, service_file, dispatcher_node,tag_na
     if not dispatcher_node:
         raise Exception('No node to dispatch. please check your dispatcher.yml format !')
     if len(register_service) < 1:
-        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,replicas=replicas,is_listen=is_listen)
+        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE if tmp_type == "ice" else _DEPLOYMENT_TMP,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,replicas=replicas,is_listen=is_listen)
     else:
         result['service'] = render_k8s_service_template(_SERVICE_TMP,register_service,service_name)
-        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,port=register_service[0][2],replicas=replicas,protocol=register_service[0][3])
-    result['image_list'].append(image_name)
-    return result
-
-#将optools服务转换成k8s的deployment
-def docker_to_k8s_ice(stack_name, service_name, service_file, dispatcher_node,tag_name,replicas=0):
-    global _DEPLOYMENT_TMP_ICE,_SERVICE_TMP
-    result = {'deployment':{},
-              'service':{},
-              'image_list': []
-             }
-    docker_data = dockerfile_parser(service_name,service_file)
-    image_name = docker_data['image_name']
-    volumes = docker_data['register_volumes']
-    register_service = docker_data['register_service']
-    enviroment = docker_data['enviroment']
-    is_listen = docker_data['is_listen']
-    volume_mounts, k8s_volumes =  to_k8s_volumes_format(volumes)
-    if not dispatcher_node:
-        raise Exception('No node to dispatch. please check your dispatcher.yml format !')
-    if len(register_service) < 1:
-        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,replicas=replicas,is_listen=is_listen)
-    else:
-        result['service'] = render_k8s_service_template(_SERVICE_TMP,register_service,service_name)
-        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,port=register_service[0][2],replicas=replicas,protocol=register_service[0][3])
+        result['deployment'] = render_k8s_deployment_template(_DEPLOYMENT_TMP_ICE if tmp_type == "ice" else _DEPLOYMENT_TMP,stack_name,service_name,image_name,enviroment,volume_mounts,k8s_volumes,dispatcher_node,tag_name,port=register_service[0][2],replicas=replicas,protocol=register_service[0][3])
     result['image_list'].append(image_name)
     return result
 
@@ -774,7 +750,7 @@ def get_stack_service(tag_name, project, stack_name, service_name=None,env='live
             if replace_service_var_by_python(service_files, parser_var_file(var_file)):
                 for service in service_data:
                     if service[0] in ['usicequoteforward-master', 'usicequoteforward-slave', 'usiceparser-master', 'usiceparser-slave']:
-                        result.append(docker_to_k8s_ice(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
+                        result.append(docker_to_k8s(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2],tmp_type="ice"))
                     else:
                         result.append(docker_to_k8s(stack_name,service[0],service[1],dispatcher_node,tag_name,replicas=service[2]))
                 return result
