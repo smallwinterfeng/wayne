@@ -67,8 +67,8 @@ type Webhook struct {
 }
 
 func wechatNotification(alarmContent string) {
-    //Test group
-    wechatURL := "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=fbef7c8b-c0bd-49d0-8b24-0a9c261ebcc5"
+    //product group
+    wechatURL := "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=49c2e884-897e-479c-ae11-bbb4aa80f436"
     //Test group owner
     //wechatURL := "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=698eb818-8a1d-4e40-87b1-69e918093761"
     content, data := make(map[string]string), make(map[string]interface{})    
@@ -117,6 +117,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 		content := title+"项目：" + resourceName + "\n >操作人：" + user + "\n >动作：" + action + "\n >空间：" + nameSpace + "\n >镜像版本：" + imageTag + "\n >状态：" + status + "\n >时间：" + createTime
 		wechatNotification(content)
+		//log.Println(content)
 
 		//update wayne description and delete invalid deployment_template
 		if nameSpace == "hq-system" {
@@ -143,6 +144,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		createTime := time.Now().Format("2006-01-02 15:04:05")
 		content := title+"项目：" + resourceName + "\n >操作人：" + user + "\n >动作：" + action + "\n >空间：" + nameSpace + "\n >时间：" + createTime
 		wechatNotification(content)
+		//log.Println(content)
 	} 
 }
 
@@ -266,7 +268,7 @@ func deleteDeploymentTemplate() {
 
 
 func main() {
-    log.Println("server started")
+	log.Println("server started")
 	http.HandleFunc("/webhook", handleWebhook)
 	http.HandleFunc("/webhookOptools", handleWebhookOptools)
 	log.Fatal(http.ListenAndServe(":8089", nil))
