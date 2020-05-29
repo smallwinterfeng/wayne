@@ -280,7 +280,7 @@ def checkout_to_tag_incre(tag_name):
         print(u"下载optools代码失败,请检查是否添加公钥")
         return False
     #result = os.system('cd {0} && git checkout {1}'.format(code_dir,tag_name))
-    result = os.system('cd {0} && git fetch --all &>/dev/null &&  git reset --hard origin/master &>/dev/null && echo "q"|git pull origin {1} &>/dev/null'.format(code_dir,tag_name))
+    result = os.system('cd {0} && git fetch --all &>/dev/null && git reset --hard origin/master &>/dev/null && echo "q"|git checkout {1} &>/dev/null'.format(code_dir,tag_name))
     if result != 0:
         print(u"checkout 代码失败,请确认tag是否存在")
         return False
